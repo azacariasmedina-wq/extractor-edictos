@@ -9,7 +9,6 @@ app.post('/extraer-ejecutado', async (req, res) => {
     try {
         const urlPdf = req.body.url;
         
-        // Aquí le metemos el disfraz (User-Agent) para que el BOE no bloquee
         const response = await axios.get(urlPdf, { 
             responseType: 'arraybuffer',
             headers: {
@@ -20,12 +19,22 @@ app.post('/extraer-ejecutado', async (req, res) => {
         const data = await pdf(response.data);
         const textoFiltro = data.text;
         
-        const regex = /(?:Ejecutado\s+)([\s\S]+?)(?=\s+(?:Interviniente|Abogado|Procurador|EDICTO\b))/i;
-        const match = textoFiltro.match(regex);
+        // EL TRUCO: Cortamos los primeros 2000 caracteres para obligarle a mirar SOLO en la cabecera (donde está la tabla)
+        const textoEncabezado = textoFiltro.substring(0, 2000);
+        
+        // Buscamos Ejecutado y limitamos la captura a 150 caracteres máximo para que no se trague párrafos
+        const regex = /Ejecutado[\s:]+([\s\S]{5,150}?)(?=\s+(?:Interviniente|Abogado|Procurador|EDICTO|HAGO SABER|\n\s*\n))/i;
+        const match = textoEncabezado.match(regex);
         
         let nombreEjecutado = "No localizado";
         if (match) {
-            nombreEjecutado = match[1].replace(/Ejecutado/gi, '').replace(/\s+/g, ' ').trim();
+            // Limpiamos repeticiones y espacios extra
+            nombreEjecutado = match[1].replace(/Ejecutado/gi, ' ').replace(/\s+/g, ' ').trim();
+            
+            // Filtro de seguridad: Si por algún casual pilla texto de leyes, lo descartamos
+            if (nombreEjecutado.includes(" o el ") || nombreEjecutado.length > 120) {
+                nombreEjecutado = "Lectura compleja (Revisar PDF manual)";
+            }
         }
         
         res.json({ ejecutado: nombreEjecutado });
