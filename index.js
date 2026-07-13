@@ -21,23 +21,26 @@ app.post('/extraer-ejecutado', async (req, res) => {
         
         let nombreEjecutado = "No localizado";
         
-        // TÁCTICA 1: Buscar en el párrafo lineal (A prueba de columnas del Juzgado)
-        // Busca la palabra "contra", y pilla todo el texto en MAYÚSCULAS hasta la coma o "representado"
-        const regexParrafo = /contra\s+([A-ZÁÉÍÓÚÑ\s,Y]+?)(?:,|\s+representado|\s+en reclamaci|\.\s)/;
+        // TÁCTICA 1: Busca "contra" y coge absolutamente todo ( [^,]+? ) hasta la primera coma o palabra clave
+        const regexParrafo = /contra\s+([^,]+?)(?:,|\s+representad[oa]s?|\s+en reclamaci|\s+por principal)/i;
         const matchParrafo = textoFiltro.match(regexParrafo);
         
         if (matchParrafo && matchParrafo[1].trim().length > 4) {
-            nombreEjecutado = matchParrafo[1].trim();
+            let limpieza = matchParrafo[1].trim();
+            // Evitamos que se trague tochos de texto por error
+            if (limpieza.length < 150) {
+                nombreEjecutado = limpieza;
+            }
         } 
-        else {
-            // TÁCTICA 2: Plan B (Buscar en la tabla por si el párrafo no dice "contra")
-            const textoEncabezado = textoFiltro.substring(0, 2000);
-            const regexTabla = /Ejecutado[\s:]+([\s\S]{5,200}?)(?=\s+(?:Interviniente|EDICTO|HAGO SABER|D\.\/DÑA))/i;
+        
+        // TÁCTICA 2: El Plan B clásico por si no dice "contra"
+        if (nombreEjecutado === "No localizado") {
+            const textoEncabezado = textoFiltro.substring(0, 3000);
+            const regexTabla = /Ejecutado[\s:]+([\s\S]{5,150}?)(?=\s+(?:Interviniente|Abogado|Procurador|EDICTO|HAGO SABER|\n\s*\n))/i;
             const matchTabla = textoEncabezado.match(regexTabla);
             
             if (matchTabla) {
                 let limpieza = matchTabla[1].replace(/Ejecutado/gi, ' ').replace(/\s+/g, ' ').trim();
-                // Filtro para que no se trague avisos legales
                 if (!limpieza.includes(" o el ") && limpieza.length < 150) {
                     nombreEjecutado = limpieza;
                 }
