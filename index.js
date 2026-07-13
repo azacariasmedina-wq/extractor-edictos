@@ -19,21 +19,28 @@ app.post('/extraer-ejecutado', async (req, res) => {
         const data = await pdf(response.data);
         const textoFiltro = data.text;
         
-        // EL TRUCO: Cortamos los primeros 2000 caracteres para obligarle a mirar SOLO en la cabecera (donde está la tabla)
-        const textoEncabezado = textoFiltro.substring(0, 2000);
-        
-        // Buscamos Ejecutado y limitamos la captura a 150 caracteres máximo para que no se trague párrafos
-        const regex = /Ejecutado[\s:]+([\s\S]{5,150}?)(?=\s+(?:Interviniente|Abogado|Procurador|EDICTO|HAGO SABER|\n\s*\n))/i;
-        const match = textoEncabezado.match(regex);
-        
         let nombreEjecutado = "No localizado";
-        if (match) {
-            // Limpiamos repeticiones y espacios extra
-            nombreEjecutado = match[1].replace(/Ejecutado/gi, ' ').replace(/\s+/g, ' ').trim();
+        
+        // TÁCTICA 1: Buscar en el párrafo lineal (A prueba de columnas del Juzgado)
+        // Busca la palabra "contra", y pilla todo el texto en MAYÚSCULAS hasta la coma o "representado"
+        const regexParrafo = /contra\s+([A-ZÁÉÍÓÚÑ\s,Y]+?)(?:,|\s+representado|\s+en reclamaci|\.\s)/;
+        const matchParrafo = textoFiltro.match(regexParrafo);
+        
+        if (matchParrafo && matchParrafo[1].trim().length > 4) {
+            nombreEjecutado = matchParrafo[1].trim();
+        } 
+        else {
+            // TÁCTICA 2: Plan B (Buscar en la tabla por si el párrafo no dice "contra")
+            const textoEncabezado = textoFiltro.substring(0, 2000);
+            const regexTabla = /Ejecutado[\s:]+([\s\S]{5,200}?)(?=\s+(?:Interviniente|EDICTO|HAGO SABER|D\.\/DÑA))/i;
+            const matchTabla = textoEncabezado.match(regexTabla);
             
-            // Filtro de seguridad: Si por algún casual pilla texto de leyes, lo descartamos
-            if (nombreEjecutado.includes(" o el ") || nombreEjecutado.length > 120) {
-                nombreEjecutado = "Lectura compleja (Revisar PDF manual)";
+            if (matchTabla) {
+                let limpieza = matchTabla[1].replace(/Ejecutado/gi, ' ').replace(/\s+/g, ' ').trim();
+                // Filtro para que no se trague avisos legales
+                if (!limpieza.includes(" o el ") && limpieza.length < 150) {
+                    nombreEjecutado = limpieza;
+                }
             }
         }
         
