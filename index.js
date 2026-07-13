@@ -13,10 +13,15 @@ app.post('/extraer-ejecutado', async (req, res) => {
         const data = await pdf(response.data);
         const textoFiltro = data.text;
         
-        const regex = /Ejecutado[\s\S]*?(?:Interviniente:|Abogado:|Procurador:)?[\s]+([A-Z\s\.,]+S\.L\.|[A-Z\s\.,]+S\.A\.|[A-Z\s,]+)/i;
+        // Expresión mejorada: para cuando vea Interviniente, Abogado o Procurador (tengan o no dos puntos)
+        const regex = /(?:Ejecutado\s+)([\s\S]+?)(?=\s+(?:Interviniente|Abogado|Procurador|EDICTO\b))/i;
         const match = textoFiltro.match(regex);
         
-        const nombreEjecutado = match ? match[1].trim() : "No localizado";
+        let nombreEjecutado = "No localizado";
+        if (match) {
+            // Limpiamos la basura: quitamos si repite la palabra "Ejecutado", quitamos saltos de línea y espacios
+            nombreEjecutado = match[1].replace(/Ejecutado/gi, '').replace(/\s+/g, ' ').trim();
+        }
         
         res.json({ ejecutado: nombreEjecutado });
         
