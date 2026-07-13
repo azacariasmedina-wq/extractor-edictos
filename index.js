@@ -9,17 +9,22 @@ app.post('/extraer-ejecutado', async (req, res) => {
     try {
         const urlPdf = req.body.url;
         
-        const response = await axios.get(urlPdf, { responseType: 'arraybuffer' });
+        // Aquí le metemos el disfraz (User-Agent) para que el BOE no bloquee
+        const response = await axios.get(urlPdf, { 
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        
         const data = await pdf(response.data);
         const textoFiltro = data.text;
         
-        // Expresión mejorada: para cuando vea Interviniente, Abogado o Procurador (tengan o no dos puntos)
         const regex = /(?:Ejecutado\s+)([\s\S]+?)(?=\s+(?:Interviniente|Abogado|Procurador|EDICTO\b))/i;
         const match = textoFiltro.match(regex);
         
         let nombreEjecutado = "No localizado";
         if (match) {
-            // Limpiamos la basura: quitamos si repite la palabra "Ejecutado", quitamos saltos de línea y espacios
             nombreEjecutado = match[1].replace(/Ejecutado/gi, '').replace(/\s+/g, ' ').trim();
         }
         
